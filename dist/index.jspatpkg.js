@@ -748,7 +748,7 @@ class midiParse extends _Base__WEBPACK_IMPORTED_MODULE_0__.default {
           } else if (eventType === 0x0e) {
             this.outlet(6, channel);
             const hires = this.getProp("hires");
-            if (hires === "off") this.outlet(5, data2);else if (hires === "float") this.outlet(5, (data1 + (data2 << 7)) / 0x2000 - 1);else this.outlet(5, -0x2000 + data1 + (data2 << 7));
+            if (hires === "off") this.outlet(5, data2);else if (hires === "float") this.outlet(5, (data1 + (data2 << 7)) / 16383 * 2 - 1);else this.outlet(5, -8192 + data1 + (data2 << 7));
           } else {
             this.error("Unrecognised MIDI event type: ".concat(eventType));
           }
