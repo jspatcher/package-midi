@@ -20,6 +20,15 @@ const config = {
   },
   module: {
     rules: [{
+      test: /\.worklet\.(ts|js)$/,
+      use: [{
+        loader: 'worklet-loader',
+        options: {
+          inline: true
+        }
+      }],
+      exclude: /node_modules/
+    }, {
       test: /\.(ts|js)x?$/,
       use: {
         loader: 'esbuild-loader',

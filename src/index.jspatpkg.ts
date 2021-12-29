@@ -2,7 +2,8 @@ import midiDevices from "./objects/devices";
 import midiFormat from "./objects/midiFormat";
 import midiIn from "./objects/midiIn";
 import midiOut from "./objects/midiOut";
-import midiParse from "./objects/midiparse";
+import midiParse from "./objects/midiParse";
+import midiSequencer from "./objects/midiSequencer";
 
 export default async () => {
     return {
@@ -15,5 +16,7 @@ export default async () => {
         midiformat: midiFormat,
         midiParse,
         midiparse: midiParse,
+        midiSequencer,
+        midisequencer: midiSequencer
     };
 };
