@@ -1,5 +1,4 @@
 import type { IInletsMeta, IOutletsMeta, IPropsMeta } from "@jspatcher/jspatcher/src/core/objects/base/AbstractObject";
-import { Utils } from "../sdk";
 import MidiObject from "./Base";
 
 type I = [Iterable<number>];

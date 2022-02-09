@@ -20,10 +20,17 @@ class MidiSequencerProcessor extends AudioWorkletProcessor<MsgIn, MsgOut, Parame
             minValue: 0,
             maxValue: 1,
             defaultValue: 0
+        }, {
+            name: "replaceOnEnd",
+            minValue: 0,
+            maxValue: 1,
+            defaultValue: 0
         }];
     }
     playing = false;
     loop = false;
+    replaceOnEnd = false;
+    toReplaceOnEnd: MidiData = null;
     data: MidiData = null;
     orderedEvents: { data: Uint8Array; time: number }[] = [];
     $event = 0;
@@ -41,7 +48,7 @@ class MidiSequencerProcessor extends AudioWorkletProcessor<MsgIn, MsgOut, Parame
         };
         this.port.onmessage = this.handleMessage;
     }
-    setData(data: MidiData) {
+    _setData(data: MidiData) {
         this.sendFlush();
         this.data = data;
         this.orderedEvents = [];
@@ -56,6 +63,13 @@ class MidiSequencerProcessor extends AudioWorkletProcessor<MsgIn, MsgOut, Parame
             })
         });
         this.orderedEvents.sort((a, b) => a.time - b.time);
+    }
+    setData(data: MidiData) {
+        if (this.replaceOnEnd) {
+            this.toReplaceOnEnd = data;
+        } else {
+            this._setData(data);
+        }
     }
     goto(time: number) {
         this.sendFlush();
@@ -79,6 +93,10 @@ class MidiSequencerProcessor extends AudioWorkletProcessor<MsgIn, MsgOut, Parame
     advance(offset: number, playing: boolean, loop: boolean, fromTime: number) {
         if (!playing) return;
         if (this.timeOffset >= this.totalDuration) {
+            if (this.toReplaceOnEnd && this.replaceOnEnd) {
+                this._setData(this.toReplaceOnEnd);
+                this.toReplaceOnEnd = null;
+            }
             if (loop) {
                 this.timeOffset = 0;
                 this.$event = 0;
@@ -135,6 +153,9 @@ class MidiSequencerProcessor extends AudioWorkletProcessor<MsgIn, MsgOut, Parame
             this.playing = playing;
             const loop = !!(i < parameters.loop.length ? parameters.loop[i] : parameters.loop[0]);
             this.loop = loop;
+            const replaceOnEnd = !!(i < parameters.replaceOnEnd.length ? parameters.replaceOnEnd[i] : parameters.replaceOnEnd[0]);
+            if (replaceOnEnd !== this.replaceOnEnd && !replaceOnEnd) this.toReplaceOnEnd = null;
+            this.replaceOnEnd = replaceOnEnd;
             this.advance(advanceTime, this.playing, this.loop, fromTime);
         }
         this.updateTime();

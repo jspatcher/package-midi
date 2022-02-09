@@ -7,6 +7,7 @@ interface IS {
 }
 interface P {
     loop: boolean;
+    replaceOnEnd: boolean;
 }
 
 export default class midiSequencer extends MidiObject<{}, IS, [ArrayBuffer | Uint8Array | { goto: number } | boolean | number], [Uint8Array], [], P> {
@@ -26,6 +27,11 @@ export default class midiSequencer extends MidiObject<{}, IS, [ArrayBuffer | Uin
             type: "boolean",
             description: "Loop",
             default: false
+        },
+        replaceOnEnd: {
+            type: "boolean",
+            description: "Replace MIDI file when current playing file ends",
+            default: false
         }
     };
     _: IS = { node: null };
@@ -43,6 +49,7 @@ export default class midiSequencer extends MidiObject<{}, IS, [ArrayBuffer | Uin
         });
         this.on("updateProps", () => {
             this._.node.parameters.get("loop").value = +!!this.getProp("loop");
+            this._.node.parameters.get("replaceOnEnd").value = +!!this.getProp("replaceOnEnd");
         });
         this.on("inlet", async ({ data, inlet }) => {
             if (inlet === 0) {

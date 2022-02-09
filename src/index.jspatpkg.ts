@@ -4,6 +4,7 @@ import midiIn from "./objects/midiIn";
 import midiOut from "./objects/midiOut";
 import midiParse from "./objects/midiParse";
 import midiSequencer from "./objects/midiSequencer";
+import makeNote from "./objects/makeNote";
 
 export default async () => {
     return {
@@ -17,6 +18,8 @@ export default async () => {
         midiParse,
         midiparse: midiParse,
         midiSequencer,
-        midisequencer: midiSequencer
+        midisequencer: midiSequencer,
+        makenote: makeNote,
+        makeNote
     };
 };

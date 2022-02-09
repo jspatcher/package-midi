@@ -193,6 +193,158 @@ midiDevices.props = {
 
 /***/ }),
 
+/***/ "./src/objects/makeNote.ts":
+/*!*********************************!*\
+  !*** ./src/objects/makeNote.ts ***!
+  \*********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* binding */ makeNote)
+/* harmony export */ });
+/* harmony import */ var _Base__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./Base */ "./src/objects/Base.ts");
+
+class makeNote extends _Base__WEBPACK_IMPORTED_MODULE_0__["default"] {
+  constructor() {
+    super(...arguments);
+    this._ = {
+      velocity: Math.min(127, Math.max(0, ~~+this.args[0])) || 0,
+      duration: Math.max(0, +this.args[1]) || 0,
+      channel: Math.min(16, Math.max(1, ~~+this.args[2])) || 1,
+      map: new Array(16).fill(null).map(() => new Array(128).fill(null).map(() => /* @__PURE__ */ new Set()))
+    };
+  }
+  subscribe() {
+    super.subscribe();
+    this.on("preInit", () => {
+      this.inlets = 4;
+      this.outlets = 3;
+    });
+    this.on("inlet", async ({ data, inlet }) => {
+      if (inlet === 0) {
+        if (typeof data === "number") {
+          if (isNaN(data))
+            return;
+          const note = Math.min(127, Math.max(0, ~~+data));
+          const { velocity, duration, channel, map } = this._;
+          const repeatMode = this.getProp("repeatMode");
+          const set = map[channel - 1][note];
+          const ref = window.setTimeout(() => {
+            set.delete(ref);
+            this.outletAll([note, 0, channel]);
+          }, duration);
+          if (set.size) {
+            if (repeatMode === "Re-trigger") {
+              set.forEach((ref2) => {
+                window.clearTimeout(ref2);
+                this.outletAll([note, 0, channel]);
+              });
+              set.clear();
+            } else if (repeatMode === "Stop last") {
+              set.forEach((ref2) => {
+                window.clearTimeout(ref2);
+              });
+              set.clear();
+            }
+          }
+          set.add(ref);
+          this.outletAll([note, velocity, channel]);
+        } else if (data === "clear") {
+          this._.map.forEach((noteMap) => {
+            noteMap.forEach((set) => {
+              set.forEach((ref) => window.clearTimeout(ref));
+              set.clear();
+            });
+          });
+        } else if (data === "stop") {
+          const repeatMode = this.getProp("repeatMode");
+          this._.map.forEach((noteMap, channel) => {
+            noteMap.forEach((set, note) => {
+              set.forEach((ref) => window.clearTimeout(ref));
+              if (repeatMode === "Stop last")
+                this.outletAll([note, 0, channel]);
+              else
+                set.forEach(() => this.outletAll([note, 0, channel]));
+              set.clear();
+            });
+          });
+        }
+      } else if (inlet === 1) {
+        this._.velocity = Math.min(127, Math.max(0, ~~+data)) || 0;
+      } else if (inlet === 2) {
+        this._.duration = Math.max(0, +data) || 0;
+      } else if (inlet === 3) {
+        this._.channel = Math.min(16, Math.max(1, ~~+data)) || 1;
+      }
+    });
+    this.on("destroy", () => {
+      this._.map.forEach((channel) => {
+        channel.forEach((note) => {
+          note.forEach((ref) => window.clearTimeout(ref));
+          note.clear();
+        });
+      });
+    });
+  }
+}
+makeNote.description = "Generate a note-on/note-off pair";
+makeNote.inlets = [{
+  isHot: true,
+  type: "anything",
+  description: 'MIDI-note number to start a note, "clear" to cancel future note-offs, "stop" to send note-offs now.'
+}, {
+  isHot: false,
+  type: "number",
+  description: "Velocity (0-127)"
+}, {
+  isHot: false,
+  type: "number",
+  description: "Duration in seconds"
+}, {
+  isHot: false,
+  type: "number",
+  description: "Channel (1-based)"
+}];
+makeNote.outlets = [{
+  type: "number",
+  description: "Pitch (0-127)"
+}, {
+  type: "number",
+  description: "Velocity (0-127)"
+}, {
+  type: "number",
+  description: "Channel (1-based)"
+}];
+makeNote.args = [{
+  type: "number",
+  optional: false,
+  description: "Initial velocity (0-127)",
+  default: 0
+}, {
+  type: "number",
+  optional: false,
+  description: "Initial duration in seconds",
+  default: 0
+}, {
+  type: "number",
+  optional: true,
+  description: "Initial channel (1-based)",
+  default: 1
+}];
+makeNote.props = {
+  repeatMode: {
+    type: "enum",
+    enums: ["Poly", "Re-trigger", "Stop last"],
+    description: "Re-trigger: if the note was already playing, send a note-off and retrigger the note; Stop last: send only one note-off message at the end of the last note.",
+    default: "Poly"
+  }
+};
+
+
+/***/ }),
+
 /***/ "./src/objects/midiFormat.ts":
 /*!***********************************!*\
   !*** ./src/objects/midiFormat.ts ***!
@@ -727,6 +879,7 @@ class midiSequencer extends _Base__WEBPACK_IMPORTED_MODULE_1__["default"] {
     });
     this.on("updateProps", () => {
       this._.node.parameters.get("loop").value = +!!this.getProp("loop");
+      this._.node.parameters.get("replaceOnEnd").value = +!!this.getProp("replaceOnEnd");
     });
     this.on("inlet", async ({ data, inlet }) => {
       if (inlet === 0) {
@@ -762,6 +915,11 @@ midiSequencer.props = {
   loop: {
     type: "boolean",
     description: "Loop",
+    default: false
+  },
+  replaceOnEnd: {
+    type: "boolean",
+    description: "Replace MIDI file when current playing file ends",
     default: false
   }
 };
@@ -1238,7 +1396,7 @@ class MidiSequencerNode extends AudioWorkletNode {
   \********************************************************/
 /***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
-module.exports = __webpack_require__(/*! !!./node_modules/worklet-loader/dist/worklets/InlineWorklet.js */ "./node_modules/worklet-loader/dist/worklets/InlineWorklet.js")("/******/ (() => { // webpackBootstrap\n/******/ \t\"use strict\";\n/******/ \t// The require scope\n/******/ \tvar __webpack_require__ = {};\n/******/ \t\n/************************************************************************/\n/******/ \t/* webpack/runtime/define property getters */\n/******/ \t(() => {\n/******/ \t\t// define getter functions for harmony exports\n/******/ \t\t__webpack_require__.d = (exports, definition) => {\n/******/ \t\t\tfor(var key in definition) {\n/******/ \t\t\t\tif(__webpack_require__.o(definition, key) && !__webpack_require__.o(exports, key)) {\n/******/ \t\t\t\t\tObject.defineProperty(exports, key, { enumerable: true, get: definition[key] });\n/******/ \t\t\t\t}\n/******/ \t\t\t}\n/******/ \t\t};\n/******/ \t})();\n/******/ \t\n/******/ \t/* webpack/runtime/hasOwnProperty shorthand */\n/******/ \t(() => {\n/******/ \t\t__webpack_require__.o = (obj, prop) => (Object.prototype.hasOwnProperty.call(obj, prop))\n/******/ \t})();\n/******/ \t\n/******/ \t/* webpack/runtime/make namespace object */\n/******/ \t(() => {\n/******/ \t\t// define __esModule on exports\n/******/ \t\t__webpack_require__.r = (exports) => {\n/******/ \t\t\tif(typeof Symbol !== 'undefined' && Symbol.toStringTag) {\n/******/ \t\t\t\tObject.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });\n/******/ \t\t\t}\n/******/ \t\t\tObject.defineProperty(exports, '__esModule', { value: true });\n/******/ \t\t};\n/******/ \t})();\n/******/ \t\n/************************************************************************/\nvar __webpack_exports__ = {};\n/*!*****************************************************************************************************************************!*\\\n  !*** ./node_modules/esbuild-loader/dist/index.js??ruleSet[1].rules[1].use!./src/worklets/MidiSequencerProcessor.worklet.ts ***!\n  \\*****************************************************************************************************************************/\n__webpack_require__.r(__webpack_exports__);\n/* harmony export */ __webpack_require__.d(__webpack_exports__, {\n/* harmony export */   \"processorId\": () => (/* binding */ processorId)\n/* harmony export */ });\nconst processorId = \"__JSPatcher_package-midi_MidiSequencer\";\nconst audioWorkletGlobalScope = globalThis;\nconst { registerProcessor, sampleRate } = audioWorkletGlobalScope;\nconst AudioWorkletProcessor = audioWorkletGlobalScope.AudioWorkletProcessor;\nclass MidiSequencerProcessor extends AudioWorkletProcessor {\n  constructor(options) {\n    super(options);\n    this.playing = false;\n    this.loop = false;\n    this.data = null;\n    this.orderedEvents = [];\n    this.$event = 0;\n    this.timeOffset = 0;\n    this.totalDuration = 0;\n    this.handleMessage = (e) => {\n      if (e.data.type === \"midiJson\") {\n        this.setData(e.data.data);\n      } else if (e.data.type === \"goto\") {\n        this.goto(e.data.data);\n      }\n    };\n    this.port.onmessage = this.handleMessage;\n  }\n  static get parameterDescriptors() {\n    return [{\n      name: \"playing\",\n      minValue: 0,\n      maxValue: 1,\n      defaultValue: 0\n    }, {\n      name: \"loop\",\n      minValue: 0,\n      maxValue: 1,\n      defaultValue: 0\n    }];\n  }\n  setData(data) {\n    this.sendFlush();\n    this.data = data;\n    this.orderedEvents = [];\n    this.$event = 0;\n    this.timeOffset = 0;\n    this.totalDuration = data.duration;\n    data.tracks.forEach((track) => {\n      track.forEach((event) => {\n        if (event.bytes) {\n          this.orderedEvents.push({ time: event.time, data: event.bytes });\n        }\n      });\n    });\n    this.orderedEvents.sort((a, b) => a.time - b.time);\n  }\n  goto(time) {\n    this.sendFlush();\n    let $ = 0;\n    this.timeOffset = Math.min(time, this.totalDuration);\n    for (let i = 0; i < this.orderedEvents.length; i++) {\n      const event = this.orderedEvents[i];\n      if (event.time < this.timeOffset)\n        $ = i;\n      else\n        break;\n    }\n    this.$event = $;\n  }\n  onMidi(data, time) {\n    this.port.postMessage({ type: \"midiMessage\", data: { bytes: data, time } });\n  }\n  sendFlush() {\n    const { currentTime } = audioWorkletGlobalScope;\n    this.onMidi(new Uint8Array([176, 121, 0]), currentTime);\n    this.onMidi(new Uint8Array([176, 123, 0]), currentTime);\n  }\n  advance(offset, playing, loop, fromTime) {\n    if (!playing)\n      return;\n    if (this.timeOffset >= this.totalDuration) {\n      if (loop) {\n        this.timeOffset = 0;\n        this.$event = 0;\n      } else\n        return;\n    }\n    if (!this.orderedEvents.length)\n      return;\n    let advanced = 0;\n    while (advanced < offset) {\n      let $ = this.$event + 1;\n      let nextEventDeltaTime = 0;\n      let nextEvent = null;\n      const timeOffset = this.timeOffset + advanced;\n      if ($ >= this.orderedEvents.length) {\n        nextEventDeltaTime += this.totalDuration - timeOffset;\n        if (loop) {\n          $ = 0;\n          nextEvent = this.orderedEvents[$];\n          const { time } = nextEvent;\n          this.timeOffset -= this.totalDuration;\n          nextEventDeltaTime += time;\n        }\n      } else {\n        nextEvent = this.orderedEvents[$];\n        const { time } = nextEvent;\n        nextEventDeltaTime += time - timeOffset;\n      }\n      if (advanced + nextEventDeltaTime < offset) {\n        if (nextEvent) {\n          const { data } = nextEvent;\n          this.onMidi(data, fromTime + advanced);\n        } else\n          break;\n        this.$event = $;\n      }\n      advanced += nextEventDeltaTime;\n    }\n    this.timeOffset += offset;\n    if (loop) {\n      this.timeOffset %= this.totalDuration;\n    } else if (this.timeOffset > this.totalDuration) {\n      this.timeOffset = this.totalDuration;\n    }\n  }\n  updateTime() {\n    this.port.postMessage({ type: \"timeOffset\", data: this.timeOffset });\n  }\n  process(inputs, outputs, parameters) {\n    const bufferSize = outputs[0][0].length;\n    const advanceTime = 1 / sampleRate;\n    const { currentTime } = audioWorkletGlobalScope;\n    for (let i = 0; i < bufferSize; i++) {\n      const fromTime = currentTime * advanceTime * i;\n      const playing = !!(i < parameters.playing.length ? parameters.playing[i] : parameters.playing[0]);\n      if (playing !== this.playing && !playing)\n        this.onMidi(new Uint8Array([176, 123, 0]), fromTime);\n      this.playing = playing;\n      const loop = !!(i < parameters.loop.length ? parameters.loop[i] : parameters.loop[0]);\n      this.loop = loop;\n      this.advance(advanceTime, this.playing, this.loop, fromTime);\n    }\n    this.updateTime();\n    return true;\n  }\n}\ntry {\n  registerProcessor(processorId, MidiSequencerProcessor);\n} catch (error) {\n  console.warn(error);\n}\n\n/******/ })()\n;\n//# sourceMappingURL=b5efd4a3573ae345caa3.worklet.js.map");
+module.exports = __webpack_require__(/*! !!./node_modules/worklet-loader/dist/worklets/InlineWorklet.js */ "./node_modules/worklet-loader/dist/worklets/InlineWorklet.js")("/******/ (() => { // webpackBootstrap\n/******/ \t\"use strict\";\n/******/ \t// The require scope\n/******/ \tvar __webpack_require__ = {};\n/******/ \t\n/************************************************************************/\n/******/ \t/* webpack/runtime/define property getters */\n/******/ \t(() => {\n/******/ \t\t// define getter functions for harmony exports\n/******/ \t\t__webpack_require__.d = (exports, definition) => {\n/******/ \t\t\tfor(var key in definition) {\n/******/ \t\t\t\tif(__webpack_require__.o(definition, key) && !__webpack_require__.o(exports, key)) {\n/******/ \t\t\t\t\tObject.defineProperty(exports, key, { enumerable: true, get: definition[key] });\n/******/ \t\t\t\t}\n/******/ \t\t\t}\n/******/ \t\t};\n/******/ \t})();\n/******/ \t\n/******/ \t/* webpack/runtime/hasOwnProperty shorthand */\n/******/ \t(() => {\n/******/ \t\t__webpack_require__.o = (obj, prop) => (Object.prototype.hasOwnProperty.call(obj, prop))\n/******/ \t})();\n/******/ \t\n/******/ \t/* webpack/runtime/make namespace object */\n/******/ \t(() => {\n/******/ \t\t// define __esModule on exports\n/******/ \t\t__webpack_require__.r = (exports) => {\n/******/ \t\t\tif(typeof Symbol !== 'undefined' && Symbol.toStringTag) {\n/******/ \t\t\t\tObject.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });\n/******/ \t\t\t}\n/******/ \t\t\tObject.defineProperty(exports, '__esModule', { value: true });\n/******/ \t\t};\n/******/ \t})();\n/******/ \t\n/************************************************************************/\nvar __webpack_exports__ = {};\n/*!*****************************************************************************************************************************!*\\\n  !*** ./node_modules/esbuild-loader/dist/index.js??ruleSet[1].rules[1].use!./src/worklets/MidiSequencerProcessor.worklet.ts ***!\n  \\*****************************************************************************************************************************/\n__webpack_require__.r(__webpack_exports__);\n/* harmony export */ __webpack_require__.d(__webpack_exports__, {\n/* harmony export */   \"processorId\": () => (/* binding */ processorId)\n/* harmony export */ });\nconst processorId = \"__JSPatcher_package-midi_MidiSequencer\";\nconst audioWorkletGlobalScope = globalThis;\nconst { registerProcessor, sampleRate } = audioWorkletGlobalScope;\nconst AudioWorkletProcessor = audioWorkletGlobalScope.AudioWorkletProcessor;\nclass MidiSequencerProcessor extends AudioWorkletProcessor {\n  constructor(options) {\n    super(options);\n    this.playing = false;\n    this.loop = false;\n    this.replaceOnEnd = false;\n    this.toReplaceOnEnd = null;\n    this.data = null;\n    this.orderedEvents = [];\n    this.$event = 0;\n    this.timeOffset = 0;\n    this.totalDuration = 0;\n    this.handleMessage = (e) => {\n      if (e.data.type === \"midiJson\") {\n        this.setData(e.data.data);\n      } else if (e.data.type === \"goto\") {\n        this.goto(e.data.data);\n      }\n    };\n    this.port.onmessage = this.handleMessage;\n  }\n  static get parameterDescriptors() {\n    return [{\n      name: \"playing\",\n      minValue: 0,\n      maxValue: 1,\n      defaultValue: 0\n    }, {\n      name: \"loop\",\n      minValue: 0,\n      maxValue: 1,\n      defaultValue: 0\n    }, {\n      name: \"replaceOnEnd\",\n      minValue: 0,\n      maxValue: 1,\n      defaultValue: 0\n    }];\n  }\n  _setData(data) {\n    this.sendFlush();\n    this.data = data;\n    this.orderedEvents = [];\n    this.$event = 0;\n    this.timeOffset = 0;\n    this.totalDuration = data.duration;\n    data.tracks.forEach((track) => {\n      track.forEach((event) => {\n        if (event.bytes) {\n          this.orderedEvents.push({ time: event.time, data: event.bytes });\n        }\n      });\n    });\n    this.orderedEvents.sort((a, b) => a.time - b.time);\n  }\n  setData(data) {\n    if (this.replaceOnEnd) {\n      this.toReplaceOnEnd = data;\n    } else {\n      this._setData(data);\n    }\n  }\n  goto(time) {\n    this.sendFlush();\n    let $ = 0;\n    this.timeOffset = Math.min(time, this.totalDuration);\n    for (let i = 0; i < this.orderedEvents.length; i++) {\n      const event = this.orderedEvents[i];\n      if (event.time < this.timeOffset)\n        $ = i;\n      else\n        break;\n    }\n    this.$event = $;\n  }\n  onMidi(data, time) {\n    this.port.postMessage({ type: \"midiMessage\", data: { bytes: data, time } });\n  }\n  sendFlush() {\n    const { currentTime } = audioWorkletGlobalScope;\n    this.onMidi(new Uint8Array([176, 121, 0]), currentTime);\n    this.onMidi(new Uint8Array([176, 123, 0]), currentTime);\n  }\n  advance(offset, playing, loop, fromTime) {\n    if (!playing)\n      return;\n    if (this.timeOffset >= this.totalDuration) {\n      if (this.toReplaceOnEnd && this.replaceOnEnd) {\n        this._setData(this.toReplaceOnEnd);\n        this.toReplaceOnEnd = null;\n      }\n      if (loop) {\n        this.timeOffset = 0;\n        this.$event = 0;\n      } else\n        return;\n    }\n    if (!this.orderedEvents.length)\n      return;\n    let advanced = 0;\n    while (advanced < offset) {\n      let $ = this.$event + 1;\n      let nextEventDeltaTime = 0;\n      let nextEvent = null;\n      const timeOffset = this.timeOffset + advanced;\n      if ($ >= this.orderedEvents.length) {\n        nextEventDeltaTime += this.totalDuration - timeOffset;\n        if (loop) {\n          $ = 0;\n          nextEvent = this.orderedEvents[$];\n          const { time } = nextEvent;\n          this.timeOffset -= this.totalDuration;\n          nextEventDeltaTime += time;\n        }\n      } else {\n        nextEvent = this.orderedEvents[$];\n        const { time } = nextEvent;\n        nextEventDeltaTime += time - timeOffset;\n      }\n      if (advanced + nextEventDeltaTime < offset) {\n        if (nextEvent) {\n          const { data } = nextEvent;\n          this.onMidi(data, fromTime + advanced);\n        } else\n          break;\n        this.$event = $;\n      }\n      advanced += nextEventDeltaTime;\n    }\n    this.timeOffset += offset;\n    if (loop) {\n      this.timeOffset %= this.totalDuration;\n    } else if (this.timeOffset > this.totalDuration) {\n      this.timeOffset = this.totalDuration;\n    }\n  }\n  updateTime() {\n    this.port.postMessage({ type: \"timeOffset\", data: this.timeOffset });\n  }\n  process(inputs, outputs, parameters) {\n    const bufferSize = outputs[0][0].length;\n    const advanceTime = 1 / sampleRate;\n    const { currentTime } = audioWorkletGlobalScope;\n    for (let i = 0; i < bufferSize; i++) {\n      const fromTime = currentTime * advanceTime * i;\n      const playing = !!(i < parameters.playing.length ? parameters.playing[i] : parameters.playing[0]);\n      if (playing !== this.playing && !playing)\n        this.onMidi(new Uint8Array([176, 123, 0]), fromTime);\n      this.playing = playing;\n      const loop = !!(i < parameters.loop.length ? parameters.loop[i] : parameters.loop[0]);\n      this.loop = loop;\n      const replaceOnEnd = !!(i < parameters.replaceOnEnd.length ? parameters.replaceOnEnd[i] : parameters.replaceOnEnd[0]);\n      if (replaceOnEnd !== this.replaceOnEnd && !replaceOnEnd)\n        this.toReplaceOnEnd = null;\n      this.replaceOnEnd = replaceOnEnd;\n      this.advance(advanceTime, this.playing, this.loop, fromTime);\n    }\n    this.updateTime();\n    return true;\n  }\n}\ntry {\n  registerProcessor(processorId, MidiSequencerProcessor);\n} catch (error) {\n  console.warn(error);\n}\n\n/******/ })()\n;\n//# sourceMappingURL=c3c842c83350a53f1ded.worklet.js.map");
 
 /***/ }),
 
@@ -1405,6 +1563,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _objects_midiOut__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./objects/midiOut */ "./src/objects/midiOut.ts");
 /* harmony import */ var _objects_midiParse__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./objects/midiParse */ "./src/objects/midiParse.ts");
 /* harmony import */ var _objects_midiSequencer__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./objects/midiSequencer */ "./src/objects/midiSequencer.ts");
+/* harmony import */ var _objects_makeNote__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./objects/makeNote */ "./src/objects/makeNote.ts");
+
 
 
 
@@ -1423,7 +1583,9 @@ __webpack_require__.r(__webpack_exports__);
     midiParse: _objects_midiParse__WEBPACK_IMPORTED_MODULE_4__["default"],
     midiparse: _objects_midiParse__WEBPACK_IMPORTED_MODULE_4__["default"],
     midiSequencer: _objects_midiSequencer__WEBPACK_IMPORTED_MODULE_5__["default"],
-    midisequencer: _objects_midiSequencer__WEBPACK_IMPORTED_MODULE_5__["default"]
+    midisequencer: _objects_midiSequencer__WEBPACK_IMPORTED_MODULE_5__["default"],
+    makenote: _objects_makeNote__WEBPACK_IMPORTED_MODULE_6__["default"],
+    makeNote: _objects_makeNote__WEBPACK_IMPORTED_MODULE_6__["default"]
   };
 });
 
