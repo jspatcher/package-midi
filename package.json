@@ -1,6 +1,6 @@
 {
   "name": "@jspatcher/package-midi",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "The MIDI package for JSPatcher",
   "main": "dist/index.js",
   "scripts": {
