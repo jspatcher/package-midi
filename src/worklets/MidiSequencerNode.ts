@@ -13,6 +13,7 @@ export default class MidiSequencerNode extends AudioWorkletNode<MsgIn, MsgOut, P
     }
     handleMessage: (e: MessageEvent<MsgIn>) => void;
     onMidi: (bytes: Uint8Array, time: number) => any;
+    onEnd: () => any;
     timeOffset: number;
     totalDuration: number;
     constructor(context: BaseAudioContext) {
@@ -21,9 +22,11 @@ export default class MidiSequencerNode extends AudioWorkletNode<MsgIn, MsgOut, P
         this.totalDuration = 0;
         this.handleMessage = (e: MessageEvent<MsgIn>) => {
             if (e.data.type === "midiMessage") {
-                this.onMidi(e.data.data.bytes, e.data.data.time);
+                this.onMidi?.(e.data.data.bytes, e.data.data.time);
             } else if (e.data.type === "timeOffset") {
                 this.timeOffset = e.data.data;
+            } else if (e.data.type === "end") {
+                this.onEnd?.();
             }
         };
         this.port.onmessage = this.handleMessage;
@@ -37,8 +40,8 @@ export default class MidiSequencerNode extends AudioWorkletNode<MsgIn, MsgOut, P
         this.port.postMessage({ type: "goto", data: time });
     }
     sendFlush() {
-        this.onMidi(new Uint8Array([176, 121, 0]), this.context.currentTime); // All Controllers Reset
-        this.onMidi(new Uint8Array([176, 123, 0]), this.context.currentTime); // All Notes Off
+        this.onMidi?.(new Uint8Array([176, 121, 0]), this.context.currentTime); // All Controllers Reset
+        this.onMidi?.(new Uint8Array([176, 123, 0]), this.context.currentTime); // All Notes Off
     }
 	destroy() {
         this.sendFlush();

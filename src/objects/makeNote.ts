@@ -26,7 +26,7 @@ export default class makeNote extends MidiObject<{}, {}, [number | "clear" | "st
     }, {
         isHot: false,
         type: "number",
-        description: "Duration in seconds"
+        description: "Duration in milliseconds"
     }, {
         isHot: false,
         type: "number",
@@ -50,7 +50,7 @@ export default class makeNote extends MidiObject<{}, {}, [number | "clear" | "st
     }, {
         type: "number",
         optional: false,
-        description: "Initial duration in seconds",
+        description: "Initial duration in milliseconds",
         default: 0
     }, {
         type: "number",

@@ -133,6 +133,9 @@ class MidiSequencerProcessor extends AudioWorkletProcessor<MsgIn, MsgOut, Parame
             advanced += nextEventDeltaTime;
         }
         this.timeOffset += offset;
+        if (this.timeOffset >= this.totalDuration) {
+            this.port.postMessage({ type: "end" });
+        }
         if (loop) {
             this.timeOffset %= this.totalDuration;
         } else if (this.timeOffset > this.totalDuration) {
@@ -163,7 +166,7 @@ class MidiSequencerProcessor extends AudioWorkletProcessor<MsgIn, MsgOut, Parame
     }
 }
 try {
-    registerProcessor(processorId, MidiSequencerProcessor)
+    registerProcessor(processorId, MidiSequencerProcessor);
 } catch (error) {
     console.warn(error);
 }
